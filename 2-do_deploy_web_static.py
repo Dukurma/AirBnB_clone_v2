@@ -1,49 +1,30 @@
 #!/usr/bin/python3
-# A Fabric script that generates a .tgz archive
-from datetime import datetime
-from fabric.api import local, env, run, put
-import tarfile
-import os.path
+"""
+Fabric script based on the file 1-pack_web_static.py that distributes an
+archive to the web servers
+"""
 
-
-env.hosts = ['54.234.63.33', '18.234.193.44']
-env.user = 'ubuntu'
-env.key_filename = '~/.ssh/school'
-
-
-def do_pack():
-    """ Creates a tar gzipped archive of the directory web_static """
-    d = datetime.utcnow()
-    file = "versions/web_static_{}{}{}{}{}{}.tgz".format(d.year,
-                                                         d.month,
-                                                         d.day,
-                                                         d.hour,
-                                                         d.minute,
-                                                         d.second)
-    if os.path.isdir("versions") is False:
-        if local("mkdir -p versions").format is True:
-            return None
-    if local("tar -cvzf {} web_static".format(file)).failed is True:
-        return None
-    return file
+from fabric.api import put, run, env
+from os.path import exists
+env.hosts = ['100.25.135.206', '52.87.22.215']
 
 
 def do_deploy(archive_path):
-    """ Distributes an archive to a web server """
-    fd = archive_path.split('/')[1]
+    """distributes an archive to the web servers"""
+    if exists(archive_path) is False:
+        return False
     try:
-        put(archive_path, '/tmp/{}'.format(fd))
-        run('mkdir -p /data/web_static/releases/{}'.format(fd))
-        run('tar -xzf /tmp/{} -C /data/web_static/releases/{}'.format(fd, fd))
-        run('rm /tmp/{}'.format(fd))
-        run('mv /data/web_static/releases/{}/web_static/*\
-        /data/web_static/releases/{}/'.format(fd, fd))
-        run('rm -rf /data/web_static/releases/{}/web_static'.format(fd))
+        file_n = archive_path.split("/")[-1]
+        no_ext = file_n.split(".")[0]
+        path = "/data/web_static/releases/"
+        put(archive_path, '/tmp/')
+        run('mkdir -p {}{}/'.format(path, no_ext))
+        run('tar -xzf /tmp/{} -C {}{}/'.format(file_n, path, no_ext))
+        run('rm /tmp/{}'.format(file_n))
+        run('mv {0}{1}/web_static/* {0}{1}/'.format(path, no_ext))
+        run('rm -rf {}{}/web_static'.format(path, no_ext))
         run('rm -rf /data/web_static/current')
-        run('ln -s /data/web_static/releases/{}/\
-        /data/web_static/current'.format(fd))
-        print("New version deployed!")
+        run('ln -s {}{}/ /data/web_static/current'.format(path, no_ext))
         return True
-    except Exception:
-        print("New version not deployed!")
+    except:
         return False
